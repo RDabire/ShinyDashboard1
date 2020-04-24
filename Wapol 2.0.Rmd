@@ -1,0 +1,1109 @@
+---
+title: "WAPOL Implementation 2.0"
+author: "Roy"
+date: "01/04/2020"
+runtime: shiny
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+load("sample_ims_data copy.Rdata")
+```
+
+#Data Exploration
+
+```{r}
+head(rand_sample)
+```
+
+```{r}
+summary(rand_sample)
+```
+
+```{r}
+str(rand_sample)
+```
+
+
+```{r}
+#List all N/A to unknown 
+rand_sample[is.na(rand_sample)] = "NA"
+```
+
+
+```{r}
+#Creating single column dataframe for each variable 
+for (row in 1:nrow(rand_sample)) {
+    OutLawMotorCycleGangRelated <- rand_sample[1]
+    FireArmsUsed  <- rand_sample[2]
+    OffenderHasViolentHistory <- rand_sample[3]
+    
+    ViolenIncident <- rand_sample[4]
+    PoliceOfficerAssaulted <- rand_sample[5]
+    
+    NumberOfFirearmsSeized <- rand_sample[6]
+    QuantityOfDrugsSeized <- rand_sample[7]
+    AmountOfCashSeized <- rand_sample[8]
+    
+    YoungestVictimAge <- rand_sample[9]
+    OldestVictimAge <- rand_sample[10]
+    #VictimsOfVulnerableAge <- rand_sample[1]  #*** special consideration (nothing for this)
+    VictimisationCount <- rand_sample[11]
+    
+    CommunityOrPublicSpace <- rand_sample[12]
+    AlcoholRelatedLoca <- rand_sample[13]
+    IncidentsSinceJan16 <- rand_sample[14]
+    
+    IncidentslinkedToVehicle <- rand_sample[15]
+    VehicleOfInterest <- rand_sample[16]
+    
+    YoungestSuspectAge <- rand_sample[17]
+    #MaxOFRSUSPOffencesSince01Jan16  (Excluded by Shih in the diagram of nodes)
+    ReleasesSinceJan16 <- rand_sample[19]
+    OffenceSince16 <- rand_sample[20]
+    
+    ValueOfDamage <- rand_sample[21]
+    PenaltyOfOffences <- rand_sample[22]
+    WeaponsUsed <- rand_sample[23]
+    
+}
+```
+
+#Interpretation of CPT.
+
+All nodes in the bayesian belief network represented the variables for the observed data in the real world. These parent nodes were grouped into distinct groups based on their relative connection/ correlation determined through knowledge of WA police staff officers. As such all 22 observed variables were split into distrinct groups based on their connection. The joint probability distribution of the parent nodes formed a new variable (latent variable or node).
+
+1. Threat to community: Conditional probability distribution of Outlaw gang related, firearms used and Offender has violent history observations. Characterised into 3 distinct levels (lowm medium and high). 
+
+2. Risk to Officer: Conditional probability distribution of Violent incident and Police officer assaulter observations. Characterised by a low and high level
+
+3. Seized Property: Conditional probability distribution of Number of firearms used, Quantity of drugs seized (g) and Amount of cash seized ($). Characterised by a low and high level
+
+4.Victims Vulnerability: Conditional probability distribution of Victims of vulnerable age and Victimisation count since Jan 2016 observations. However the the Victims of vulnerable age is a latent variable built of the Youngest victim age and oldest victim age observations. The vistims Vulnerability has a low and high level
+
+5.Profile of Location: Conditional probability distribution of Community or public space, Alcohol related location, Incident since Jan 16 observations. Characterised by a high and low level.
+
+6. Vehicle Involvement: Conditional probability distribution of Incidents linked to vehicle and Vehicle of interest observations. Characterised bya low and high level
+
+
+7. Suspect Recidivism: Conditional probability distribution of Youngest suspect age, Releases since Jan 2016 and Offences since Jan 2016. Chacterised by a low and high level 
+
+8. Harm of Incident: Conditional probability  of Weapons used, Penalty of offences(years) and Value of damage ($) observations. Characterised by a low and high level
+
+**Where a combination of variables within any CPT comnputes a 0.5 chance of occuring. The latent node will be regarded as low or "No"
+
+Ultimately the linear combination of these latent variables or nodes provides the DCR score. The interpretation of the latent node is a low level would indicate a low chance of occuring and as such the node is switched "off" or represented as 0. A high level would indicate significance and as such the node is switched "on" or represented as 1. The addition of the "ON" nodes will provide the DCR score for a particular incidident reporting. 
+
+(*At each latent node we pose the question, what is the high chance of the node being expressed based on the CPT, any combination in the CPT of 0.5 or greater chance of the node bieng high will be Yes and as such the node is expressed. Any combination with a less then 0.5 chance of occuring will represnt a low level and node expressed as No)
+
+The weight of each latent variable in calculating the DCR score is as follow:
+
+1. Threat to community: 30
+
+2. Risk to Officer: 30
+
+3. Seized Property: 5
+
+4.Victims Vulnerability: 16
+
+5.Profile of Location: 2.5
+
+6. Vehicle Involvement: 2.5
+
+7. Suspect Recidivism: 7
+
+8. Harm of Incident: 7
+
+Scores above 65 will be deemed significant to the preparing officer. 
+
+
+
+##Threat to Community Connection
+```{r}
+#Binding the 3 variables that form the "latent variable "Threat to Community"
+ThreatToCommunity1 <- cbind(OutLawMotorCycleGangRelated,FireArmsUsed, OffenderHasViolentHistory)
+
+#Loop to categorise data according to CPT for Threat to Community
+ThreatToCommunity1$ThreatToCommunity <- apply(ThreatToCommunity1, 1, function(x)
+    {
+        if(x[1] == "N" & x[2] == "N" & x[3] == "N") result <- "No"  
+        else if(x[1] == "N" & x[2] == "N" & x[3] == "Y") result <- "Yes"
+        else if(x[1] == "N" & x[2] == "Y" & x[3] == "N") result <- "Yes"
+        else if(x[1] == "N" & x[2] == "Y" & x[3] == "Y") result <- "Yes"
+        else if(x[1] == "Y" & x[2] == "N" & x[3] == "N") result <- "Yes"
+        else if(x[1] == "Y" & x[2] == "N" & x[3] == "Y") result <- "Yes"
+        else if(x[1] == "Y" & x[2] == "Y" & x[3] == "N") result <- "Yes"
+        else if(x[1] == "Y" & x[2] == "Y" & x[3] == "Y") result <- "Yes"
+        else result <- "NA"
+        return(result)
+    })
+ThreatToCommunity1
+```
+
+##Risk To Officer Safety 
+```{r} 
+RiskToOfficer1 <- cbind(ViolenIncident, PoliceOfficerAssaulted)
+RiskToOfficer1$RiskToOfficerSafety <- apply(RiskToOfficer1, 1, function(x)
+    {
+        if(x[1] == "N" & x[2] == "N") result <- "No"
+        else if(x[1] == "N" & x[2] == "Y") result <- "Yes"
+        else if(x[1] == "Y" & x[2] == "N") result <- "Yes"
+        else if(x[1] == "Y" & x[2] == "Y") result <- "Yes"
+        else result <- "NA"
+        return(result)
+    }) 
+RiskToOfficer1
+
+```
+
+##Seized Property
+```{r}
+SeizedProperty1 <- cbind( NumberOfFirearmsSeized, QuantityOfDrugsSeized, AmountOfCashSeized)
+SeizedProperty1$SeizedProperty <- apply(SeizedProperty1, 1, function(x)
+    {
+       if(x[1] == 0 & x[2] <11 & x[3] < 10000) result <- "No"
+        else if(x[1] == 0 & x[2] < 11 & x[3] > 10000) result <- "Yes"
+        else if(x[1] == 0 & x[2] > 10 & x[3] < 10000) result <- "Yes"
+        else if(x[1] == 0 & x[2] > 10 & x[3] > 10000) result <- "Yes"
+        else if(x[1] > 0 & x[2] < 11 & x[3] < 10000) result <- "Yes"
+        else if(x[1] > 0 & x[2] < 11 & x[3] > 10000) result <- "Yes"
+        else if(x[1] > 0 & x[2] > 10 & x[3] < 10000) result <- "Yes"
+        else if(x[1] > 0 & x[2] > 10 & x[3] > 10000) result <- "Yes"
+        else result <- "NA"
+        return(result)
+    }) 
+SeizedProperty1
+
+```
+
+##Victims Vulnerability
+```{r}
+VictimsOfVulnerableAge1 <- cbind(YoungestVictimAge, OldestVictimAge) #Almost match except 19 times
+VictimsOfVulnerableAge1$VictimOfVulnerableAge  <- apply(VictimsOfVulnerableAge1, 1, function(x)
+    {
+        if(x[1] == "NA" & x[2] == "NA") result <- "NA"
+        else if(x[1] == "NA" & x[2] != "NA") result <- "NA"
+        else if(x[1] != "NA" & x[2] == "NA") result <- "NA"
+        else if(x[1] < 16 & x[2] < 16) result <- "Yes"
+        else if(x[1] >60 & x[2] > 60) result <- "Yes"
+        else result <- "No"  #This would represent 16-60
+        return(result)
+    }) 
+
+VictimsOfVulnerableAge1
+```
+
+
+```{r}
+#Adding The Victimisation count since Jan 16 to the DF
+VictimsOfVulnerableAge1[4] <- VictimisationCount
+VictimsOfVulnerableAge1
+```
+
+
+#NA consideration on this node, however handled as CPT allows to account for NA
+```{r}
+#Alternative method then Looping creating the Victims Vulnerability Node
+
+#***In this instance the NA's are irrelavent as the CPT states so long as Victim Of Vulnerbale age is Yes, Victim Vulnerbaility node is Yes. Also when Victimisation count is >10 when Victim of Vulnerable age is No this Node is Yes therefore irrelavant of NA we can determine the node.
+
+VictimsOfVulnerableAge1$VictimsVulnerbility[(VictimsOfVulnerableAge1$VictimOfVulnerableAge == "No") & (VictimsOfVulnerableAge1$MaxVictimIncidentsSince01Jan16 < 11)] <- "No" #Represents the first 3 col of CPT
+
+VictimsOfVulnerableAge1$VictimsVulnerbility[(VictimsOfVulnerableAge1$VictimOfVulnerableAge == "No") & (VictimsOfVulnerableAge1$MaxVictimIncidentsSince01Jan16 >  10)] <- "Yes"
+
+VictimsOfVulnerableAge1$VictimsVulnerbility[(VictimsOfVulnerableAge1$VictimOfVulnerableAge == "Yes")] <- "Yes"
+
+VictimsOfVulnerableAge1$VictimsVulnerbility[(VictimsOfVulnerableAge1$VictimOfVulnerableAge == "NA") & (VictimsOfVulnerableAge1$MaxVictimIncidentsSince01Jan16 > 10)] <- "Yes"  #Based on table regardless if we have the data or not a Victimisation count of >10 will have a 0.8 chance of being "high" latent node
+
+VictimsOfVulnerableAge1$VictimsVulnerbility[(VictimsOfVulnerableAge1$VictimOfVulnerableAge == "NA") & (VictimsOfVulnerableAge1$MaxVictimIncidentsSince01Jan16 < 11)] <- "No" #Based on table regardless if we have the data or not a Victimisation count of <11 will have a 0.5 or less chance of being "low" latent node
+
+VictimsOfVulnerableAge1
+```
+
+
+#Profile of Location
+```{r}
+ProfileOfLocation1 <- cbind(CommunityOrPublicSpace, AlcoholRelatedLoca, IncidentsSinceJan16)
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "N") & (ProfileOfLocation1$AlcoholRelatedPlace == "N")] <- "No" #Covers the first 2 cols
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "N") & (ProfileOfLocation1$AlcoholRelatedPlace == "Y") & (ProfileOfLocation1$IncidentsAtLocationSince1Jan16 < 6)] <- "No"
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "N") & (ProfileOfLocation1$AlcoholRelatedPlace == "Y") & (ProfileOfLocation1$IncidentsAtLocationSince1Jan16 > 5)] <- "Yes"
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "Y") & (ProfileOfLocation1$AlcoholRelatedPlace == "N")] <- "No"
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "Y") & (ProfileOfLocation1$AlcoholRelatedPlace == "Y") & (ProfileOfLocation1$IncidentsAtLocationSince1Jan16 < 6)] <- "No"
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "Y") & (ProfileOfLocation1$AlcoholRelatedPlace == "Y") & (ProfileOfLocation1$IncidentsAtLocationSince1Jan16 > 5)] <- "Yes"
+
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$CommunitySpace == "NA")] <- "NA"
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$AlcoholRelatedPlace == "NA")] <- "NA"
+ProfileOfLocation1$ProfileOfLocation[(ProfileOfLocation1$IncidentsAtLocationSince1Jan16 == "NA")] <- "NA"
+ProfileOfLocation1
+```
+
+
+
+##Vehicle Involvement 
+```{r}
+VehicleInvolvement1 <- cbind(VehicleOfInterest, IncidentslinkedToVehicle)
+
+VehicleInvolvement1$VehicleInvolvement[(VehicleInvolvement1$LinkedVOI == "N")] <- "No"
+
+VehicleInvolvement1$VehicleInvolvement[(VehicleInvolvement1$LinkedVOI == "Y")] <- "Yes"
+
+VehicleInvolvement1$VehicleInvolvement[(VehicleInvolvement1$LinkedVOI == "NA")] <- "NA"
+VehicleInvolvement1$VehicleInvolvement[(VehicleInvolvement1$TotalIncidentsVOIsLinkedTo == "NA")] <- "NA"
+VehicleInvolvement1
+
+```
+
+
+##Suspect Recidivism
+```{r}
+SuspectRecidivism1 <- cbind(ReleasesSinceJan16, YoungestSuspectAge, OffenceSince16)
+
+###################################### Violent Incident 0 #######################################################
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)] <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+###
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+###
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+##
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == 0) &  (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+
+
+###################################### Violent Incident 0-3 #######################################################
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+###
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+###
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)] <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+##
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 0) & (SuspectRecidivism1$ReleasesFromCustodySince1Jan16 < 4) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+
+###################################### Violent Incident > 3 #######################################################
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]<- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge < 15) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+###
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 14) & (SuspectRecidivism1$MinSuspectOffenderAge < 19) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+###
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]  <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 18) & (SuspectRecidivism1$MinSuspectOffenderAge < 66) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+##
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == 0)]   <- "No"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 0) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 21)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) & (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 >20) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 < 51)] <- "Yes"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 > 3) &  (SuspectRecidivism1$MinSuspectOffenderAge > 65) & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 > 50)] <- "Yes"
+
+
+###################################### Handling NA  #######################################################
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 == "NA") & (SuspectRecidivism1$MinSuspectOffenderAge != "NA") & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 != "NA")] <- "NA"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 != "NA") & (SuspectRecidivism1$MinSuspectOffenderAge == "NA") & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 != "NA")] <- "NA"
+
+SuspectRecidivism1$SuspectRecidivism1[(SuspectRecidivism1$ReleasesFromCustodySince1Jan16 != "NA") & (SuspectRecidivism1$MinSuspectOffenderAge != "NA") & (SuspectRecidivism1$MaxOFRSUSPOffencesSince01Jan16 == "NA")] <- "NA"
+
+SuspectRecidivism1
+```
+
+
+
+##Harm Of Incident
+
+```{r}
+HarmOfIncident1 <- cbind( WeaponsUsed, PenaltyOfOffences, ValueOfDamage)
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "N")&(HarmOfIncident1$MaxPenaltyYears<11)&(HarmOfIncident1$ValuePropertyStolenOrDamaged<10001)] <- "No"
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "N")&(HarmOfIncident1$MaxPenaltyYears<11)&(HarmOfIncident1$ValuePropertyStolenOrDamaged>10000)] <- "No"
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "N")&(HarmOfIncident1$MaxPenaltyYears>10 & HarmOfIncident1$MaxPenaltyYears <51)&(HarmOfIncident1$ValuePropertyStolenOrDamaged<10001)] <- "No"
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "N")&(HarmOfIncident1$MaxPenaltyYears>10 & HarmOfIncident1$MaxPenaltyYears<51)&(HarmOfIncident1$ValuePropertyStolenOrDamaged>10000)] <- "Yes"
+
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "N")&(HarmOfIncident1$MaxPenaltyYears>50)&(HarmOfIncident1$ValuePropertyStolenOrDamaged<10001)] <- "Yes"
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "N")&(HarmOfIncident1$MaxPenaltyYears>50)&(HarmOfIncident1$ValuePropertyStolenOrDamaged>10000)] <- "Yes"
+
+#Yes Cases
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO== "Y")] <- "Yes"
+
+###################################### Handling NA  #######################################################
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO == "NA") & (HarmOfIncident1$MaxPenaltyYears != "NA") & (HarmOfIncident1$ValuePropertyStolenOrDamaged != "NA")] <- "NA"
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO != "NA") & (HarmOfIncident1$MaxPenaltyYears == "NA") & (HarmOfIncident1$ValuePropertyStolenOrDamaged != "NA")] <- "NA"
+
+HarmOfIncident1$HarmOfIncident[(HarmOfIncident1$WeaponsInMO != "NA") & (HarmOfIncident1$MaxPenaltyYears != "NA") & (HarmOfIncident1$ValuePropertyStolenOrDamaged == "NA")] <- "NA"
+
+HarmOfIncident1
+```
+
+#Data frame after CPT's have been applied to the parent nodes/ observations
+
+```{r}
+LatentVar <- cbind(ThreatToCommunity1, RiskToOfficer1, SeizedProperty1, VictimsOfVulnerableAge1, ProfileOfLocation1, VehicleInvolvement1, SuspectRecidivism1, HarmOfIncident1)
+
+LatentVar
+```
+
+```{r}
+#Subset to seelect only the latent variables
+LatentVar <- subset(LatentVar, select = c(ThreatToCommunity, RiskToOfficerSafety, SeizedProperty, VictimsVulnerbility, ProfileOfLocation, VehicleInvolvement, SuspectRecidivism1, HarmOfIncident))
+
+colnames(LatentVar) <- c("Threat To Community", "Risk to Officer Safety", "Seized Property", "Victims Vulnerability", "Profile of Location", "Vehicle Involvement", "Suspect Recidivism", "Harm of Incident")
+LatentVar
+```
+
+
+#Allocating the weights
+```{r}
+LatentVar$ThreatToCommunity_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[1] == "Yes") result <- 30
+        else if(x[1] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+LatentVar$RiskToOfficer_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[2] == "Yes") result <- 30
+        else if(x[2] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+
+LatentVar$SeizedProperty_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[3] == "Yes") result <- 5
+        else if(x[3] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+LatentVar$VictimsOfVulnerableAge_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[4] == "Yes") result <- 16
+        else if(x[4] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+
+
+LatentVar$ProfileOfLocation_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[5] == "Yes") result <- 2.5
+        else if(x[5] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+
+LatentVar$VehicleInvolvement_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[6] == "Yes") result <- 2.5
+        else if(x[6] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+LatentVar$SuspectRecidivism_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[7] == "Yes") result <- 7
+        else if(x[7] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+
+LatentVar$HarmOfIncident_Score <- apply(LatentVar, 1, function(x)
+    {
+        if(x[8] == "Yes") result <- 7
+        else if(x[8] == "No") result <- 0
+        else result <- NA
+        return(result)
+    }) 
+
+LatentVar
+```
+
+
+#Computing the Total DCR Score
+```{r}
+LatentVar$TotalScore <- rowSums(LatentVar[,9:16], na.rm = TRUE)  
+LatentVar
+```
+
+#Order the data from Highest DCR Score
+```{r}
+LatentVarScoresONLY <- LatentVar[,9:17]
+colnames(LatentVarScoresONLY) <- c("Threat To Community", "Risk to Officer Safety", "Seized Property", "Victims Vulnerability", "Profile of Location", "Vehicle Involvement", "Suspect Recidivism", "Harm of Incident", "Total")
+LatentVarScoresONLY <- LatentVarScoresONLY[order(LatentVarScoresONLY$Total, decreasing = TRUE), ]
+LatentVar_Levels <- LatentVarScoresONLY
+LatentVarScoresONLY
+```
+
+```{r}
+colnames(LatentVar_Levels) <- c("Threat To Community", "Risk to Officer Safety", "Seized Property", "Victims Vulnerability", "Profile of Location", "Vehicle Involvement", "Suspect Recidivism", "Harm of Incident", "DCR Score")
+```
+
+
+```{r}
+LatentVar_Levels$`Threat To Community`[LatentVar_Levels$`Threat To Community` == 30] <- "High"
+LatentVar_Levels$`Threat To Community`[LatentVar_Levels$`Threat To Community` == 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Risk to Officer Safety`[LatentVar_Levels$`Risk to Officer Safety` == 30] <- "High"
+LatentVar_Levels$`Risk to Officer Safety`[LatentVar_Levels$`Risk to Officer Safety`== 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Seized Property`[LatentVar_Levels$`Seized Property` == 5] <- "High"
+LatentVar_Levels$`Seized Property`[LatentVar_Levels$`Seized Property` == 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Victims Vulnerability`[LatentVar_Levels$`Victims Vulnerability` == 16] <- "High"
+LatentVar_Levels$`Victims Vulnerability`[LatentVar_Levels$`Victims Vulnerability` == 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Profile of Location`[LatentVar_Levels$`Profile of Location` == 2.5] <- "High"
+LatentVar_Levels$`Profile of Location`[LatentVar_Levels$`Profile of Location` == 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Vehicle Involvement`[LatentVar_Levels$`Vehicle Involvement` == 2.5] <- "High"
+LatentVar_Levels$`Vehicle Involvement`[LatentVar_Levels$`Vehicle Involvement` == 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Suspect Recidivism`[LatentVar_Levels$`Suspect Recidivism` == 7] <- "High"
+LatentVar_Levels$`Suspect Recidivism`[LatentVar_Levels$`Suspect Recidivism` == 0] <- "Low"
+```
+
+```{r}
+LatentVar_Levels$`Harm of Incident`[LatentVar_Levels$`Harm of Incident` == 7] <- "High"
+LatentVar_Levels$`Harm of Incident`[LatentVar_Levels$`Harm of Incident` == 0] <- "Low"
+```
+
+
+#Subsetting to each latent variable that did occur
+```{r}
+ThreatToCom_Scores <- subset(LatentVarScoresONLY, subset = (`Threat To Community` >0))
+ThreatToCom_Scores
+ThreatToCom_levels <- subset(LatentVar_Levels, subset = (`Threat To Community` == "High"))
+ThreatToCom_levels
+```
+
+```{r}
+RiskToOff_Scores <- subset(LatentVarScoresONLY, subset = (`Risk to Officer Safety` >0))
+RiskToOff_Levels <- subset(LatentVar_Levels, subset = (`Risk to Officer Safety` == "High"))
+```
+
+```{r}
+SeizedProp_Scores <-  subset(LatentVarScoresONLY, subset = (`Seized Property` >0))
+SeizedProp_Levels <- subset(LatentVar_Levels, subset = (`Seized Property` == "High"))
+```
+
+```{r}
+VictimsVuln_Scores <-  subset(LatentVarScoresONLY, subset = (`Victims Vulnerability` >0))
+VictimsVuln_Levels <- subset(LatentVar_Levels, subset = (`Victims Vulnerability` == "High"))
+```
+
+```{r}
+ProfileLoc_Scores <-  subset(LatentVarScoresONLY, subset = (`Profile of Location` >0))
+ProfileLoc_Levels <- subset(LatentVar_Levels, subset = (`Profile of Location`== "High"))
+```
+
+```{r}
+VehicleInvol_Scores <- subset(LatentVarScoresONLY, subset = (`Vehicle Involvement` >0))
+VehicleInvol_Levels <- subset(LatentVar_Levels, subset = (`Vehicle Involvement` == "High"))
+```
+
+```{r}
+SuspectRece_Scores <-  subset(LatentVarScoresONLY, subset = (`Suspect Recidivism` >0))
+SuspectRece_Levels <- subset(LatentVar_Levels, subset = (`Suspect Recidivism` == "High"))
+```
+
+```{r}
+HarmOfInc_Scores <-  subset(LatentVarScoresONLY, subset = (`Harm of Incident` >0))
+HarmOfInc_Levels <- subset(LatentVar_Levels, subset = (`Harm of Incident` == "High"))
+```
+
+#Subsetting the data to only include the DCR score above 65 as per Report threshold
+```{r}
+#Threshold at 65
+Top65DATA <- LatentVar[LatentVar$TotalScore >=65, ]
+Top65DATA <- Top65DATA[order(Top65DATA$TotalScore, decreasing = TRUE), ]
+Top65DATA
+```
+
+
+#In order to consider any data points that may contain NA's we need conider scores that hover within 30 points of threshold? (30 chosen as its the highest scaled score any variable can be)
+```{r}
+Top35DATA <- LatentVar[LatentVar$TotalScore >=55, ]
+Top35DATA
+sum(is.na(Top35DATA))
+```
+
+
+#Changed Column names on Data containing threshold of 65 and ordered the data 
+```{r}
+Top65DATA_SCORES <- Top65DATA[, 9:17]
+colnames(Top65DATA_SCORES) <- c("Threat To Community", "Risk to Officer Safety", "Seized Property", "Victims Vulnerability", "Profile of Location", "Vehicle Involvement", "Suspect Recidivism", "Harm of Incident", "Total")
+
+#Order the scores
+Top65DATA_SCORES <- Top65DATA_SCORES[order(Top65DATA_SCORES$Total, decreasing = TRUE), ]
+Top65DATA_SCORES
+```
+
+```{r}
+Top35DATA_SCORES <- Top35DATA[, 9:17]
+
+colnames(Top35DATA_SCORES) <- c("Threat To Community", "Risk to Officer Safety", "Seized Property", "Victims Vulnerability", "Profile of Location", "Vehicle Involvement", "Suspect Recidivism", "Harm of Incident", "Total")
+
+Top35DATA_SCORES <- Top35DATA_SCORES[order(Top35DATA_SCORES$Total, decreasing = TRUE), ]
+
+Top35DATA_SCORES
+
+```
+
+#Subset to create DF where all variables containing NA's exist
+```{r}
+Top35DATA_SCORES_NA <- Top35DATA_SCORES[rowSums(is.na(Top35DATA_SCORES)) > 0,]
+LatentVarScoresONLY_NA <- LatentVarScoresONLY[rowSums(is.na(LatentVarScoresONLY)) >0,]
+LatentVarLevels_NA <- LatentVar_Levels[rowSums(is.na(LatentVarScoresONLY)) >0,]
+LatentVarLevels_NA
+```
+
+
+#Visualisations
+
+```{r}
+library(RColorBrewer)
+
+#Colour Pallete 
+Colour8 <- brewer.pal(8, "Pastel2")
+Colour2 <- brewer.pal(2, "Pastel2")
+
+```
+
+
+
+```{r, fig.height=19, fig.width=12}
+par(mfrow=c(4,2))
+
+pie(table(Top65DATA$`Threat To Community`), main = "Threat To The Community", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Risk to Officer Safety`), main = "Risk To Officer ", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Seized Property`), main = "Seized Property", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Victims Vulnerability`), main = "Victims Vulnerability", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Profile of Location`), main = "Profile of Location", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Vehicle Involvement`),main = "Vehicle Involvement", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Suspect Recidivism`), main = "Suspect Recidivism", labels = c("Low", "High"), col = Colour2)
+
+pie(table(Top65DATA$`Harm of Incident`), main = "Harm of Incident", labels = c("Low", "High"), col = Colour2)
+
+```
+
+```{r}
+pie(c(length(Top65DATA$TotalScore), length(LatentVar$TotalScore)-length(Top65DATA$TotalScore)), main = "Significant Crimes", labels = c("Significant", "Not Significant"), col = Colour2)
+```
+
+```{r}
+t(Top65DATA_SCORES[0:10,])
+```
+
+
+#Barplot of DCR in meaningful manner
+```{r}
+barplot(t(Top65DATA_SCORES[0:20,1:8]), xlim = c(0,100),horiz = T, col = Colour8, main = "DCR Score Breakdown Top 10", xlab = "DCR Score", las = 2)
+legend("topleft", legend =  colnames(Top65DATA_SCORES[, 1:8]), fill = Colour8, cex = 0.6)
+```
+
+```{r}
+barplot(t(Top65DATA_SCORES[10:20,1:8]),xlim = c(0,100), horiz = T, col = Colour8, main = "DCR Score Breakdown 10-20", xlab = "DCR Score", las = 2)
+legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 0.6)
+```
+
+```{r}
+barplot(t(Top65DATA_SCORES[20:30,1:8]),xlim = c(0,100), horiz = T, col = Colour8, main = "DCR Score Breakdown 20-30", xlab = "DCR Score", las = 2)
+legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 0.6)
+```
+```{r}
+barplot(t(Top65DATA_SCORES[30:40,1:8]),xlim = c(0,100), horiz = T, col = Colour8, main = "DCR Score Breakdown 30-40", xlab = "DCR Score TOp 30-40", las = 2)
+legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 0.6)
+```
+
+```{r}
+barplot(t(Top65DATA_SCORES[50:40,1:8]),xlim = c(0,100) ,horiz = T ,col = Colour8, main = "DCR Score Breakdown 40-50", xlab = "DCR Score", las = 2)
+legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 0.6)
+```
+ 
+
+```{r}
+#install.packages("shiny)
+#install.packages("shinydashboard")
+#install.packages("DT")
+library(shiny)
+library(shinydashboard)
+library(DT)
+```
+
+```{r}
+library(digest)
+library(dplyr)
+```
+
+
+
+
+
+```{r}
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
+#Constructs the path for our responses to be saved in 
+fieldsAll <- c("Name", "Incident", "Degree", "Comments")
+responsesDir <- file.path("responses")
+epochTime <- function() {
+  as.integer(Sys.time())
+}
+
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
+# Define questions in Validation Mechanism 
+Name_question <- textInput("Name", "Name", value = "")
+Incident_question <- textInput("Incident", "Which incident number do you disagree with", value = "")
+Degree_question <- selectInput("Degree", "Degree", c(" ", "Highly Disagree", "Disagree", "Somewhat Disagree"), selected = NULL)
+Comments_question <- textInput("Comments", "Comments", value = "")
+#-------------------------------------------------------------------------------------------------------------------------------------------------#
+#The fle name saved with date
+humanTime <- function() format(Sys.time(), "%Y%m%d-%H%M%OS")
+```
+
+
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(DT)
+library(shinyjs)
+library(digest)
+library(dplyr)
+## app.R ##
+
+
+
+ui <- dashboardPage(
+  dashboardHeader(title = "Daily Crime Review Dashboard", titleWidth = 300),
+  
+  dashboardSidebar(sidebarMenu(id = "tabs",
+      menuItem("Dashboard", tabName = "Dashboard", icon = icon("dashboard")),
+      menuItem("Raw Data",icon = icon("table"), tabName = "Data"),
+      menuItem("Unknown Data",icon = icon("table"), tabName = "UnknowData"),
+      menuItem("Threat To Community",icon = icon("table"), tabName = "ThreatToCom"),
+      menuItem("Risk To Officer Safety",icon = icon("table"), tabName = "RiskToOf"),
+      menuItem("Seized Property",icon = icon("table"), tabName = "SeizedProp"),
+      menuItem("Victims Vulnerability",icon = icon("table"), tabName = "VictimsVul"),
+      menuItem("Profile Of Location",icon = icon("table"), tabName = "ProfileLoc"),
+      menuItem("Vehicle Involvement",icon = icon("table"), tabName = "VehicleInvol"),
+      menuItem("Suspect Recidivism",icon = icon("table"), tabName = "SuspectRecid"),
+      menuItem("Harm Of Incident",icon = icon("table"), tabName = "HarmOfInc"),
+      menuItem("About", icon = icon("clipboard"), tabName = "About"),
+      menuItem("Webpage",icon = icon("send",lib='glyphicon'), href = "https://www.police.wa.gov.au")), width = 200),
+
+  dashboardBody(
+    tabItems(
+    tabItem(tabName = "Dashboard",
+    fluidRow(
+    valueBoxOutput("value1"),valueBoxOutput("value2"), valueBoxOutput("value3"),
+    
+    box(title = "Daily Crime Review", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot1",height = "550"), width = 12),
+    
+    
+    box(title = "Ranking Incidents Start Point",numericInput("start", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    
+    box(title = "File Upload",fileInput("file", "Upload file", multiple = FALSE), width = 6, height = "135px", solidHeader = TRUE, collapsible = TRUE, status = "primary"))),
+#################################################################################################################################    
+    tabItem(tabName = "Data", h1("Data Table Of DCR Scores"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table2"), width = "80%")),
+              
+              div(shinyjs::useShinyjs(), id = "form", Name_question, Incident_question, Degree_question, Comments_question,
+              actionButton("submit", "Submit"),
+              actionButton("clear", "Clear Form"))),
+#################################################################################################################################    
+
+    tabItem(tabName = "UnknowData", h1("Data Table Of Unknown Incidents"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table3"), width = "50%"))),
+#################################################################################################################################    
+    tabItem(tabName = "ThreatToCom", h1("Threat To The Community"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table4"), width = "50%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot2",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start1", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end1", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+
+#################################################################################################################################    
+    tabItem(tabName = "RiskToOf", h1("Risk To Officer Safety"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table5"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot3",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start3", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end3", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+#################################################################################################################################    
+    tabItem(tabName = "SeizedProp", h1("Seized Property"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table6"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot4",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start4", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end4", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+#################################################################################################################################    
+    tabItem(tabName = "VictimsVul", h1("Victims Vulnerability"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table7"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot5",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start5", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end5", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+#################################################################################################################################    
+    tabItem(tabName = "ProfileLoc", h1("Profile Of Location"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table8"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot6",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start6", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end6", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+#################################################################################################################################    
+    tabItem(tabName = "VehicleInvol", h1("Vehicle Involvement"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table9"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot7",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start7", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end7", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+#################################################################################################################################    
+    tabItem(tabName = "SuspectRecid", h1("Suspect Recidivism"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table10"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot8",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start8", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end8", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+#################################################################################################################################    
+    tabItem(tabName = "HarmOfInc", h1("Harm Of Incident"), 
+            fluidRow(
+              box(status = "primary", solidHeader = TRUE, DT::dataTableOutput("table11"), width = "80%"),
+              box(title = "Incidents", status = "primary", solidHeader = TRUE, collapsible = TRUE, plotOutput("plot9",height =                   "550"), width = 9),
+              box(title = "Ranking Incidents Start Point",numericInput("start9", "From", 1, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3),
+    box(title = "Ranking Incidents End Point",numericInput("end9", "To", 5, min = 0, max = 30), solidHeader = TRUE, collapsible = TRUE, status = "primary", width = 3))),
+
+    
+    tabItem(tabName = "About", h2("Instructions On Using Dashboard ...(Currently working on)
+                                  *Sidenote Notible missing features include:
+                                      Importing new csv file
+                                      & Validation mechanism"))
+    ))
+
+  
+  )
+
+```
+
+```{r}
+library(shiny)
+library(shinydashboard)
+library(DT)
+library(shinyjs)
+library(digest)
+library(dplyr)
+
+server <- function(input, output, session) {
+  
+  
+  options(shiny.sanitize.errors = FALSE)
+  
+  observeEvent(input$file, {
+    if ( is.null(input$file)) return(NULL)
+    inFile <- isolate({input$file })
+    file <- inFile$datapath
+    load(file, envir = .GlobalEnv)
+  })
+  
+  
+  output$value1 <- renderValueBox({
+    valueBox(
+      formatC(length(rand_sample$OMCGLinked), format="d", big.mark=',')
+      ,paste('Total Incidents Reported')
+      ,icon = icon("menu-hamburger",lib='glyphicon')
+      ,color = "purple")
+  })
+  
+  output$value2 <- renderValueBox({
+    valueBox(
+      formatC(length(Top65DATA_SCORES$Total), format="d", big.mark=',')
+      ,paste('Total Significant Incidents')
+      ,icon = icon("thumbs-down")
+      ,color = "red")
+  })
+  
+  output$value3 <- renderValueBox({
+    valueBox(formatC(sum(is.na(Top35DATA)), format="d", big.mark=',')
+      ,paste('Unknowns')
+      ,icon = icon("stats",lib='glyphicon')
+      ,color = "yellow")
+  })
+  
+  output$plot1 <- renderPlot({
+
+    barplot(t(Top65DATA_SCORES[input$end:input$start,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+
+    })
+  
+################################################################################################################################# 
+   output$table2 <-  DT::renderDataTable({
+     datatable(LatentVar_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+  
+  # When the Submit button is clicked, save the form data
+  observeEvent(input$submit, {
+    saveData(formData())
+    shinyjs::reset("form")
+    
+    # thank the user
+    n_responses <- length(list.files(outputDir))
+    response <- paste0("Thanks, your response was submitted successfully!")
+    showNotification(response, duration = 0, type = "message")
+
+  })
+  
+  # clear the fields
+  observeEvent(input$clear, {
+  shinyjs::reset("form")
+  })
+  
+  
+  formData <- reactive({
+  data <- sapply(fieldsAll, function(x) input[[x]])
+  data <- c(data, timestamp = epochTime())
+  data <- t(data)
+  data
+})
+  
+  #Function to responses
+  saveData <- function(data) {
+  fileName <- sprintf("%s_%s.csv",
+                      humanTime(),
+                      digest::digest(data))
+  
+  write.csv(x = data, file = file.path(responsesDir, fileName),
+            row.names = FALSE, quote = TRUE)
+}
+
+################################################################################################################################# 
+   output$table3 <-  DT::renderDataTable({
+     datatable(Top35DATA_SCORES_NA, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+  
+################################################################################################################################# 
+    output$table4 <-  DT::renderDataTable({
+     datatable(ThreatToCom_levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+      
+    })
+      
+    output$plot2 <- renderPlot({
+       barplot(t(ThreatToCom_Scores[input$end1:input$start1,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+
+################################################################################################################################# 
+    output$table5 <-  DT::renderDataTable({
+     datatable(RiskToOff_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+   })
+    
+    output$plot3 <- renderPlot({
+       barplot(t(RiskToOff_Scores[input$end3:input$start3,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+    
+################################################################################################################################# 
+    output$table6 <-  DT::renderDataTable({
+     datatable(SeizedProp_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+    
+    output$plot4 <- renderPlot({
+       barplot(t(SeizedProp_Scores[input$end4:input$start4,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topright", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+    
+################################################################################################################################# 
+    
+    output$table7 <-  DT::renderDataTable({
+     datatable(VictimsVuln_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+    
+    output$plot5 <- renderPlot({
+       barplot(t(VictimsVuln_Scores[input$end5:input$start5,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+    
+################################################################################################################################# 
+    output$table8 <-  DT::renderDataTable({
+     datatable(ProfileLoc_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+    
+    output$plot6 <- renderPlot({
+       barplot(t(ProfileLoc_Scores[input$end6:input$start6,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topright", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+
+################################################################################################################################# 
+    output$table9 <-  DT::renderDataTable({
+     datatable(VehicleInvol_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+    
+    output$plot7 <- renderPlot({
+       barplot(t(VehicleInvol_Scores[input$end7:input$start7,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+    
+################################################################################################################################# 
+    output$table10 <-  DT::renderDataTable({
+     datatable(SuspectRece_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+    
+    output$plot8 <- renderPlot({
+       barplot(t(SuspectRece_Scores[input$end8:input$start8,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+    
+################################################################################################################################# 
+    
+    output$table11 <-  DT::renderDataTable({
+     datatable(HarmOfInc_Levels, filter = 'top', extensions = "Buttons", options = list(dom = "Bflrtip", buttons = c("csv", "excel", "pdf", "print"),  lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50, "ALL"))))
+     
+   })
+    
+    output$plot9 <- renderPlot({
+       barplot(t(HarmOfInc_Scores[input$end9:input$start9,1:8]),xlim = c(0,100), horiz = T ,col = Colour8, xlab = "DCR Score", las = 2)
+    legend("topleft", legend =  colnames(Top65DATA_SCORES[,1:8]), fill = Colour8, cex = 1)
+     
+   })
+
+}
+shinyApp(ui, server)
+
+```
+
+
+
+#TRIALING INSERT FILE
+
